@@ -1,19 +1,21 @@
-#import the cozmo and image libraries
+# import the cozmo and image libraries
 import cozmo
 from cozmo.objects import LightCube1Id, LightCube2Id, LightCube3Id
 from PIL import Image
 
 
-#import libraries for movement and asynchronous behavior
+# import libraries for movement and asynchronous behavior
 import asyncio
-from cozmo.util import degrees, distance_mm
+from cozmo.util import degrees, distance_mm, Position
+from cozmo.behavior.behavior_type import LookAroundInPlace
+from cozmo.world import wait_for_observed_light_cube
 
-#import these libraries when needed for threads
+# import these libraries when needed for threads
 import _thread
 import time
 
 
-def on_object_tapped(self, event, *, obj, tap_count, tap_duration, **kw):
+def on_object_tapped(robot: cozmo.robot.Robot, self, event, *, obj, tap_count, tap_duration, **kw):
 	robot.say_text("The cube was tapped").wait_for_completed()
 	return
 
@@ -21,13 +23,13 @@ def cozmo_program(robot: cozmo.robot.Robot):
 	
 	success = True
 	
-	#see what Cozmo sees
+	# see what Cozmo sees
 	robot.camera.image_stream_enabled = True
 	
-	#connect to cubes (in case Cozmo was disconnected from the cubes)
+	# connect to cubes (in case Cozmo was disconnected from the cubes)
 	robot.world.connect_to_cubes()
 	
-	#identify cubes
+	# identify cubes
 	cube1 = robot.world.get_light_cube(LightCube1Id)  # looks like a paperclip
 	cube2 = robot.world.get_light_cube(LightCube2Id)  # looks like a lamp / heart
 	cube3 = robot.world.get_light_cube(LightCube3Id)  # looks like the letters 'ab' over 'T'
@@ -49,9 +51,9 @@ def cozmo_program(robot: cozmo.robot.Robot):
 
 	
   
-	#have the user tap each of the cubes, in order
+	# have the user tap each of the cubes, in order
 	try:
-		robot.say_text("Tap the red cube and make me say something.").wait_for_completed()
+		robot.say_text("Tap the red cube and make me do something.").wait_for_completed()
 		cube1.wait_for_tap(timeout=10)
 	except asyncio.TimeoutError:
 		robot.say_text("The red cube was not tapped").wait_for_completed()
@@ -59,11 +61,13 @@ def cozmo_program(robot: cozmo.robot.Robot):
 	finally:
 		cube1.set_lights_off()
 		if (success):
-			robot.say_text("Thank you for your service.").wait_for_completed()
+			robot.say_text("I will go to the cube.").wait_for_completed()
 		else:
 			robot.say_text("You didn't tap the cube properly.").wait_for_completed()
 		success = True
 
+		robot.go_to_object(cube1, distance_mm(20.0)).wait_for_completed()
+		robot.say_text("Moved to the cube").wait_for_completed()
 	
 	try:
 		robot.say_text("Tap the green cube so I can take a picture.").wait_for_completed()
@@ -77,17 +81,20 @@ def cozmo_program(robot: cozmo.robot.Robot):
 			robot.say_text("I see that you were paying attention.  I will take a picture.").wait_for_completed()
 		else:
 			robot.say_text("Do you know how to tap a cube? I will take a picture anyway.").wait_for_completed()
-		success = True	
+		success = True
+
+		# change orientation towards cube 2
+		robot.start_behavior(behavior_type=LookAroundInPlace).wait_for_observed_light_cube(cube2)
 		
 		new_im = robot.world.wait_for(cozmo.world.EvtNewCameraImage)
 		new_im.image.raw_image.show()
 	
-		#save the raw image as a bmp file
+		# save the raw image as a bmp file
 		img_latest = robot.world.latest_image.raw_image
 		img_convert = img_latest.convert('L')
 		img_convert.save("aPhoto.bmp")
 	
-		#save the raw image data as a png file, named imageName
+		# save the raw image data as a png file, named imageName
 		imageName = "myPhoto.png"
 		img = Image.open("aPhoto.bmp")
 		width, height = img.size
@@ -105,13 +112,12 @@ def cozmo_program(robot: cozmo.robot.Robot):
 		cube = robot.world.wait_for_observed_light_cube()
 		
 		if (success):
-			robot.say_text("Well done! I will pop a wheelie.").wait_for_completed()
+			robot.say_text("Well done! I will act like a dog.").wait_for_completed()
 		else:
-			robot.say_text("Do you know how to tap a cube? I will pop a wheelie.").wait_for_completed()
+			robot.say_text("Do you know how to tap a cube? I will act like a dog.").wait_for_completed()
 		success = True	
 
-		action = robot.pop_a_wheelie(cube, num_retries=2)
-		action.wait_for_completed()
+		robot.play_anim("anim_petdetection_dog_03").wait_for_completed()
 		
 	robot.say_text("This is awkward.  I didn't think this through.  Help me.").wait_for_completed()
 	
